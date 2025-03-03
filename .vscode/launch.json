@@ -11,7 +11,7 @@
             "request": "launch",
             "module": "scrapy",
             "cwd": "C:/Users/hrutu/Desktop/GenericScraper/scraper",
-            "args": ["crawl","genericspider3","-a","site=lewisham"]
+            "args": ["crawl","genericspider4","-a","site=uk","-a","start_url=https://publicaccess.barnet.gov.uk"]
             
         }
     ]

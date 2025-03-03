@@ -26,6 +26,7 @@ from selenium_stealth import stealth
 #from inline_requests import inline_requests
 from scraper.items import GenericcouncilItem
 from scraper.items import DocumentsItem
+from scraper.items import GeneralItem
 from scraper.scrapy_selenium2.http import SeleniumRequest, SeleniumRequestUpdatePageSourceAsBody
 from scraper.HtmlRequestByPassMiddleware import RateLimiterHandler
 
@@ -51,7 +52,7 @@ class Genericspider3Spider(scrapy.Spider):
     next_search_url = '%s/online-applications/pagedSearchResults.do?action=page&searchCriteria.page=%s'
     result_url      = '%s/online-applications/advancedSearchResults.do?action=firstPage'
     start_date      = '01/01/2025'
-    end_date        = '02/01/2025'
+    end_date        = '03/01/2025'
 
     fetch_method    = 'POST'
 
@@ -334,43 +335,44 @@ class Genericspider3Spider(scrapy.Spider):
 
         with open('C:/Users/hrutu/Desktop/GenericScraper/response.html', 'w', encoding='utf-8') as f:
             f.write(self.driver.page_source)  
+        
 
         self.default_delay()
 
         self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(5)  # Wait for the page to fully load
-    
+        
         original_window=self.driver.current_window_handle
+        curr=self.driver.current_url
         container_link=self.driver.find_elements(By.XPATH,'//ul[@id="searchresults"]//a[1]')
         links=[]
         for link in container_link:
             links.append(link.get_attribute('href'))
         print(links)
         for link in links:
-            self.driver.execute_script("window.open('');")
-            self.driver.switch_to.window(self.driver.window_handles[1])
             
             parsed_url = urlparse(link)
             par = parse_qs(parsed_url.query)
             appKey = par['keyVal'][0]
             self.log(appKey)
-            urls_with_callback = [
-                (self.summmary_url % (self.start_url, appKey), self.scrapeSummary),
-                (self.details_url % (self.start_url, appKey), self.scrapeDetails),
-                (self.contacts_url % (self.start_url, appKey), self.scrapeContacts),
-                (self.documents_url % (self.start_url, appKey), self.scrapeDocuments)
-            ]
-            for url, callback in urls_with_callback:
-                self.default_delay()
-                if not self.is_selenium_site:
-                    yield scrapy.Request(url=url, callback=callback, dont_filter=True)
-                else:
-                    yield SeleniumRequest(url=url, callback=callback, dont_filter=True, time_sleep_millisec=500)
+           
+            
+            url=self.summmary_url % (self.start_url, appKey)
+            
+            self.default_delay()
+            if not self.is_selenium_site:
+                yield scrapy.Request(url=url, callback=self.scrapeSummary, dont_filter=True,meta={'appKey':appKey})
+            else:
+                yield SeleniumRequest(url=url, callback=self.scrapeSummary, dont_filter=True, time_sleep_millisec=500,meta={'appKey':appKey})
+            
+            doc_url=self.documents_url % (self.start_url, appKey)
+            self.logger.info(f"Yielding document request: {doc_url}")
+            yield SeleniumRequest(url=doc_url, callback=self.scrapeDocuments, dont_filter=True,time_sleep_millisec=500)
 
-            self.driver.close()
-            self.driver.switch_to.window(original_window)
+        #self.driver.get(curr)
 
         # Handling pagination
+        '''
         try:
             next_button = self.driver.find_element(By.XPATH, '//a[@class="next"]')
             next_url = next_button.get_attribute('href')
@@ -390,11 +392,14 @@ class Genericspider3Spider(scrapy.Spider):
     
         except Exception as e:
             self.log(f"Pagination error: {e}")
+        '''
+        
                 
     def scrapeSummary(self,response):
         self.log('#### SCRAPING: SUMMARY ####')
-        appItem=GenericcouncilItem()
-        
+        appItem = GenericcouncilItem()
+        #appItem = response.meta['appitem']
+        appItem['key'] = response.meta['appKey']
         link = response.request.url
             #self.log(link)
         parsed_url = urlparse(link)
@@ -413,11 +418,7 @@ class Genericspider3Spider(scrapy.Spider):
                 value = self.text_replace(value,'\n','')
                 value = self.text_strip(value)
                 appItem['address'] = value
-            if header=='Decision Issued Date':
-                value = row.xpath('.//td/text()').extract_first()
-                value = self.text_replace(value,'\n','')
-                value = self.text_strip(value)
-                appItem['decisionDate'] = value
+           
             if header=='Proposal':
                 value = row.xpath('.//td').extract_first()
                 value = self.text_replace(value,'\n','')
@@ -430,49 +431,18 @@ class Genericspider3Spider(scrapy.Spider):
                 value = self.text_strip(value)
                 appItem['proposal'] = value
 
-            if header=='Reference':
-                value =row.xpath('.//td/text()').get()
-                value = self.text_replace(value,'\n','')
-                value = self.text_strip(value)
-                appItem['reference']=value
-
-            if header=='Alternative Reference':
-                value =row.xpath('.//td/text()').get()
-                value = self.text_replace(value,'\n','')
-                value = self.text_strip(value)
-                appItem['altref']=value
-            if header=='Application Received':
-                value =row.xpath('.//td/text()').get()
-                value = self.text_replace(value,'\n','')
-                value = self.text_strip(value)
-                appItem['apprecv']=value
-            if header=='Application Validated':
-                value =row.xpath('.//td/text()').get()
-                value = self.text_replace(value,'\n','')
-                value = self.text_strip(value)
-                appItem['appvalid']=value
-            if header=='Status':
-                value =row.xpath('.//td/text()').get()
-                value = self.text_replace(value,'\n','')
-                value = self.text_strip(value)
-                appItem['status']=value
-            
-            if header=='Appeal Status':
-                value =row.xpath('.//td/text()').get()
-                value = self.text_replace(value,'\n','')
-                value = self.text_strip(value)
-                appItem['appeal_status']=value
-            if header=='Appeal Decision':
-                value =row.xpath('.//td/text()').get()
-                value = self.text_replace(value,'\n','')
-                value = self.text_strip(value)
-                appItem['appeal_decision']=value
-
-        yield appItem
-
-    def scrapeDetails(self,response):
-        appItem=GenericcouncilItem()
         
+        url=self.details_url % (self.start_url, appKey)
+        self.default_delay()
+        if not self.is_selenium_site:
+            appItem= scrapy.Request(url=url, callback=self.scrapeDetails, dont_filter=True,meta={'item':appItem})
+        else:
+            appItem = SeleniumRequest(url=url, callback=self.scrapeDetails, dont_filter=True, time_sleep_millisec=500,meta={'item':appItem})
+     
+        yield appItem
+    def scrapeDetails(self,response):
+        
+        appItem = response.meta['item']
         for row in response.xpath('//tr'):
             header = row.xpath('.//th/text()').extract_first()
             header = self.text_replace(header,'\n','')
@@ -483,18 +453,7 @@ class Genericspider3Spider(scrapy.Spider):
                     value = self.text_replace(value,'\n','')
                     value = self.text_strip(value)
                     appItem['applicationType'] = value
-            if header=='Parish':
-                value = row.xpath('.//td/text()').extract_first()
-                if value is not None:
-                    value = self.text_replace(value,'\n','')
-                    value = self.text_strip(value)
-                    appItem['parish'] = value
-            if header=='Ward':
-                value = row.xpath('.//td/text()').extract_first()
-                if value is not None:
-                    value = self.text_replace(value,'\n','')
-                    value = self.text_strip(value)
-                    appItem['ward'] = value 
+           
             if header=='Applicant Name':
                 value = row.xpath('.//td/text()').extract_first()
                 if value is not None:
@@ -513,19 +472,26 @@ class Genericspider3Spider(scrapy.Spider):
                     value = self.text_replace(value,'\n','')
                     value = self.text_strip(value)
                     appItem['agentName'] = value
-            if header=='Agent Company Name':
+            if header=='Agent Address':
                 value = row.xpath('.//td/text()').extract_first()
                 if value is not None:
                     value = self.text_replace(value,'\n','')
                     value = self.text_strip(value)
-                    appItem['agentCompanyName'] = value
-                    print("agentCompanyName",value)
+                    appItem['agentAddress'] = value
+                    print("aagentAddress",value)
         
-        yield appItem
-
+        
+        url=self.contacts_url % (self.start_url, response.meta['item']['key'])
+        self.default_delay()
+        if not self.is_selenium_site:
+            appItem= scrapy.Request(url=url, callback=self.scrapeContacts, dont_filter=True,meta={'item': appItem})
+        else:
+            appItem = SeleniumRequest(url=url, callback=self.scrapeContacts, dont_filter=True, time_sleep_millisec=500,meta={'item': appItem})
+        self.default_delay()
+        return appItem
     def scrapeContacts(self,response):
-        appItem = GenericcouncilItem()
-       
+        
+        appItem = response.meta['item']
         agent_name = response.xpath('//div[@class="agents"]/p/text()').extract_first()
         
         if agent_name is not None:
@@ -559,24 +525,41 @@ class Genericspider3Spider(scrapy.Spider):
                 value = self.text_replace(value,'\n','')
                 value = self.text_strip(value)
                 appItem['agentMobile'] = value
-            if header.upper()=='Fax'.upper() or header.upper()=='FAX No.'.upper():
-                value = row.xpath('.//td/text()').extract_first()
-                value = self.text_replace(value,'\n','')
-                value = self.text_strip(value)
-                appItem['agentFax'] = value
-        url = self.documents_url % (self.start_url, response.meta.get('keyVal'))
+            
+       
         
-        appItem['documentsLink'] = url
-
+        '''
+        doc_url=self.documents_url % (self.start_url, response.meta['item']['key'])
         self.default_delay()
-
+        if not self.is_selenium_site:
+            appItem =  scrapy.Request(url=doc_url, callback=self.scrapeDocuments, dont_filter=True,meta={'item': appItem})
+        else:
+            appItem = SeleniumRequest(url=doc_url, callback=self.scrapeDocuments, dont_filter=True, time_sleep_millisec=500,meta={'item': appItem})
+        self.default_delay()
         return appItem
-    def scrapeDocuments(self,response):
         
-        rows = response.xpath('//table[@id="Documents"]/tbody/tr')  # Get all rows in the table
-    
+        '''
+        yield appItem
+       
+
+
+        
+
+
+    def scrapeDocuments(self,response):
+        #appItem = response.meta['item']
+        self.logger.info(f"******************documnets getting scraped***************")
+        rows = response.xpath('//table[@id="Documents"]/tbody/tr')[1:] # Skip the first row (header)# Get all rows in the table
+        
         for row in rows:
             appItem2 = DocumentsItem()
+            link = response.request.url
+            #self.log(link)
+            parsed_url = urlparse(link)
+            par = parse_qs(parsed_url.query)
+            #par = urlparse(link).params
+            appKey = par['keyVal'][0]
+            
             cols = row.xpath('./td')  # Get all columns in a single row
         
             if len(cols) == 5:  # If the table has 5 columns
@@ -584,11 +567,23 @@ class Genericspider3Spider(scrapy.Spider):
                 appItem2['doctype'] = cols[2].xpath('./text()').get()
                 appItem2['desc'] = cols[3].xpath('./text()').get()
                 appItem2['view'] = cols[4].xpath('./a/@href').get()
+                appItem2['key']=appKey
         
             elif len(cols) == 6:  # If the table has 6 columns
                 appItem2['datePub'] = cols[1].xpath('./text()').get()
                 appItem2['doctype'] = cols[2].xpath('./text()').get()
                 appItem2['desc'] = cols[4].xpath('./text()').get()
                 appItem2['view'] = cols[5].xpath('./a/@href').get()
-        
-            yield appItem2  # Yield each row as a separate item
+                appItem2['key']=appKey
+            else:
+                appItem2['datePub'] = cols[1].xpath('./text()').get()
+                appItem2['doctype'] = cols[2].xpath('./text()').get()
+                appItem2['desc'] = cols[-2].xpath('./text()').get()
+                appItem2['view'] = cols[-1].xpath('./a/@href').get()
+                appItem2['key']=appKey
+
+            
+            yield appItem2 # Yield each row as a separate item
+        #yield appItem
+
+
