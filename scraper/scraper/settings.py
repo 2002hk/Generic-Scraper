@@ -63,6 +63,9 @@ DOWNLOADER_MIDDLEWARES = {
 ITEM_PIPELINES = {
     'scraper.pipelines.GenericcouncilPipeline': 400,
     'scraper.pipelines.DocumentsPipeline': 300,
+    'scraper.pipelines.HaringeyPipeline': 500,
+    'scraper.pipelines.HaveringPipeline': 600,
+    'scraper.pipelines.CamdenPipeline': 700
 }
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html

@@ -11,7 +11,7 @@
             "request": "launch",
             "module": "scrapy",
             "cwd": "C:/Users/hrutu/Desktop/GenericScraper/scraper",
-            "args": ["crawl","genericspider4","-a","site=uk","-a","start_url=https://publicaccess.barnet.gov.uk"]
+            "args": ["crawl","haringey","-a","site=uk"]
             
         }
     ]

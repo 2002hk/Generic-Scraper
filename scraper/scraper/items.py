@@ -50,3 +50,28 @@ class GeneralItem(scrapy.Item):
     desc=scrapy.Field()
     view=scrapy.Field()
     key=scrapy.Field()
+
+class HaringeyItems(scrapy.Item):
+    appref=scrapy.Field()
+    proposal=scrapy.Field()
+    appstatus=scrapy.Field()
+    siteadd=scrapy.Field()
+    datevalid=scrapy.Field()
+    decision=scrapy.Field()
+    decisionNotice=scrapy.Field()
+
+class HaveringItem(scrapy.Item):
+    reference=scrapy.Field()
+    location=scrapy.Field()
+    proposal=scrapy.Field()
+    status=scrapy.Field()
+
+class CamdenItems(scrapy.Item):
+    decision=scrapy.Field()
+    appno=scrapy.Field()
+    siteAdd=scrapy.Field()
+    appType=scrapy.Field()
+    proposal=scrapy.Field()
+    applicant=scrapy.Field()
+    
+
