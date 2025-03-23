@@ -20,7 +20,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.action_chains import ActionChains
-
+from scrapy.utils.defer import parallel_async
+from twisted.internet import defer
 import undetected_chromedriver as uc
 from selenium_stealth import stealth
 #from inline_requests import inline_requests
@@ -29,20 +30,20 @@ from scraper.items import DocumentsItem
 from scraper.items import GeneralItem
 from scraper.scrapy_selenium2.http import SeleniumRequest, SeleniumRequestUpdatePageSourceAsBody
 from scraper.HtmlRequestByPassMiddleware import RateLimiterHandler
-
+from datetime import datetime, timedelta
 class Genericspider5Spider(scrapy.Spider):
     name = "genericspider5"
     #allowed_domains = ["random.com"]
 
     site=None
-    is_selenium_site=True
+    is_selenium_site=False
     selenium_allow_site=["uk"]
-    run_headless="NO"
+    run_headless="YES"
     driver : uc.Chrome = None
     rateLimit:RateLimiterHandler=RateLimiterHandler(enable=False)
     rate_period = None #sec
     rate_limit = None #max req in sec
-
+    range=None
     start_urls      = ['%s/online-applications/search.do?action=advanced']
     summmary_url    = '%s/online-applications/applicationDetails.do?activeTab=summary&keyVal=%s'
     details_url     = '%s/online-applications/applicationDetails.do?activeTab=details&keyVal=%s'
@@ -51,8 +52,6 @@ class Genericspider5Spider(scrapy.Spider):
     domain_url      = '%s%s'
     next_search_url = '%s/online-applications/pagedSearchResults.do?action=page&searchCriteria.page=%s'
     result_url      = '%s/online-applications/advancedSearchResults.do?action=firstPage'
-    start_date      = '01/01/2025'
-    end_date        = '03/01/2025'
 
     fetch_method    = 'POST'
 
@@ -135,7 +134,7 @@ class Genericspider5Spider(scrapy.Spider):
                     # options.add_argument('--disable-gpu')
                     # options.add_argument("--remote-debugging-port=9222")
                     # options.headless = True
-
+                    options.add_argument('--disable-popup-blocking')
                     options.add_argument('--ignore-certificate-errors')
                     options.add_argument('--ignore-ssl-errors')
                     options.add_argument('--start-maximized')
@@ -166,7 +165,7 @@ class Genericspider5Spider(scrapy.Spider):
                     options.headless = True
 
                     options.add_argument('--remote-allow-origins=*')  # Allow all remote origins
-
+                    options.add_argument('--disable-popup-blocking')
                     options.add_argument('--ignore-certificate-errors')
                     options.add_argument('--ignore-ssl-errors')
                     options.add_argument('--start-maximized')
@@ -184,9 +183,10 @@ class Genericspider5Spider(scrapy.Spider):
                 #create manually driver
                 chrome_driver_path = "C:/Users/hrutu/Desktop/GenericScraper/scraper/chromedriver.exe"
 
-                options = webdriver.ChromeOptions()
+                #options = webdriver.ChromeOptions()
                 service = Service(chrome_driver_path)  # Manually specify the path
-                driver = webdriver.Chrome(service=service, options=options)
+                #driver = webdriver.Chrome(service=service, options=options)
+                driver = uc.Chrome(options=options,service=service)
 
                 stealth(driver,
                         languages=["en-US", "en"],
@@ -207,12 +207,15 @@ class Genericspider5Spider(scrapy.Spider):
 
                 #update rate limit if not set default 
                 if spider.rate_period == None or spider.rate_limit == None:
-                    spider.rate_period = 5 #10
+                    spider.rate_period = 10 #10
                     spider.rate_limit = 1
 
         #rate limit class init 
         if spider.rate_period != None and spider.rate_limit != None:
-            spider.rateLimit = RateLimiterHandler(True ,max_calls=spider.rate_limit,period=spider.rate_period,spider=spider)
+            spider.rateLimit = RateLimiterHandler(True,
+            max_calls=int(spider.rate_limit),  # Convert rate_limit to int
+            period=int(spider.rate_period),    # Convert rate_period to int
+            spider=spider)
 
         spider.log(f"Rate limit period: {spider.rate_period} sec max_call {spider.rate_limit} ")
 
@@ -248,11 +251,16 @@ class Genericspider5Spider(scrapy.Spider):
 
 
     def __init__(self,start_date=None,end_date=None,start_url=None,custom_set=None,fetch_method=None,fetch_decisions=None,delay_sec=None,
-                 rate_limit=None,*args,**kwargs):
+                 rate_limit=None,site_to_scrape=None,range=None,*args,**kwargs):
         super(Genericspider5Spider,self).__init__(*args,**kwargs)
         self.rate_period=delay_sec
         self.rate_limit=rate_limit
 
+
+        if site_to_scrape!=None:
+            self.site_to_scrape=site_to_scrape
+        if range!=None:
+            self.range=range
         if delay_sec!=None:
             self.rate_period=delay_sec
             self.rate_limit=1
@@ -276,8 +284,9 @@ class Genericspider5Spider(scrapy.Spider):
             self.log('### Fetch decisions changed to: %s ###' % self.fetch_decisions)
         else:
             self.fetch_decisions=None
+        '''
         if start_date:
-            self.log('### Command start date: %s ###' % start_date)
+            #self.log('### Command start date: %s ###' % start_date)
             self.start_date = start_date
         else:
             self.log('### Command start date: %s ###' % self.start_date)
@@ -286,12 +295,15 @@ class Genericspider5Spider(scrapy.Spider):
             self.log('### Command end date: %s ###' % end_date)
             self.end_date = end_date
         else:
-            self.log('### Command end date: %s ###' % self.end_date)   
+            self.log('### Command end date: %s ###' % self.end_date)
+        '''
+           
     
     def start_requests(self):
-      
-        yield SeleniumRequest(url=self.start_url,callback=self.doSearch,implicitly_wait=120,time_sleep_millisec=6000)
-            #url=https://publicaccess.newark-sherwooddc.gov.uk/online-applications/search.do?action=advanced
+        for i, url in enumerate(self.start_urls):
+            url=url%self.start_url
+            yield scrapy.Request(url,callback=self.doSearch)
+
 
     def doSearch(self,response):
         self.log('### Scraping: doSearch ###')
@@ -300,12 +312,76 @@ class Genericspider5Spider(scrapy.Spider):
         result_url = self.result_url % self.start_url
         #result_url='https://publicaccess.newark-sherwooddc.gov.uk/online-applications/advancedSearchResults.do?action=firstPage'
         self.log('Calling %s' % result_url)
-        
+
+        if self.range=='7':
+            # Get today's date
+            today = datetime.today()
+            # Get the date 7 days ago
+            seven_days_ago = today - timedelta(days=7)
+            # Format it as day/month/year
+            formatted_date = seven_days_ago.strftime("%d/%m/%Y")
+            self.start_date      = formatted_date 
+            self.end_date        = datetime.today().strftime("%d/%m/%Y")
+            print(self.start_date)
+            print(self.end_date)
+        elif self.range=='14':
+            # Get today's date
+            today = datetime.today()
+            # Get the date 14 days ago
+            seven_days_ago = today - timedelta(days=14)
+            # Format it as day/month/year
+            formatted_date = seven_days_ago.strftime("%d/%m/%Y")
+            self.start_date      = formatted_date 
+            self.end_date        = datetime.today().strftime("%d/%m/%Y")
+            print(self.start_date)
+            print(self.end_date)
+
+        form_no_0_sites=['barnet','enfield','greenwich','lambeth','lewisham','newham','southwark']
+        form_no_1_sites=['brent','westminster']
         manual_request = False
+        if self.fetch_decisions=='yes':
+            if self.site_to_scrape in form_no_0_sites:
+                yield scrapy.FormRequest.from_response(response=response,
+                                                   formdata={
+                                                            "date(applicationDecisionStart)": self.start_date,
+                                                            "date(applicationDecisionEnd)":self.end_date,
+                                                            "searchType": "Application",
+                                                                },
+                                                    formnumber=0,
+                                                    callback=self.parse,
+                                                    method=self.fetch_method
+                                                   
+                                                   )
+            if self.site_to_scrape in form_no_1_sites:
+                 yield scrapy.FormRequest.from_response(response=response,
+                                                   formdata={
+                                                            "date(applicationDecisionStart)": self.start_date,
+                                                            "date(applicationDecisionEnd)":self.end_date,
+                                                            "searchType": "Application",
+                                                                },
+                                                    formnumber=1,
+                                                    callback=self.parse,
+                                                    method=self.fetch_method
+                                                   
+                                                   )
+       
+        else:
+            yield scrapy.FormRequest.from_response(response=response,
+                                                   formdata={
+                                                        "date(applicationValidatedStart)": self.start_date,
+                                                        "date(applicationValidatedEnd)":self.end_date,
+                                                        'searchType':'Application',
+                                                        'caseAddressType':'Application',
+                                                        'submit':'Search',
+                                                            },
+                                                    formid='advanceSearchForm',
+                                                    callback=self.parse,
+                                                    method=self.fetch_method
+                                                   
+                                                   )
 
-
-
-        if self.site=="uk" and manual_request==False:
+        self.is_selenium_site=False
+        if self.site=="uk" and manual_request==False and self.is_selenium_site==True:
             tabs=self.driver.find_elements(By.XPATH,'//ul[@class="tabs"]/li/a')
             tabs[1].click()
             if response.url=='https://publicaccess.barnet.gov.uk/online-applications/search.do?action=advanced':
@@ -324,78 +400,43 @@ class Genericspider5Spider(scrapy.Spider):
                                                     dont_filter=True #Prevent duplicate filtering if dublicate url so allow
                                                     )
 
-        
-        
-
-
 
     def parse(self,response):
         self.log('### Scraping: parse ###')
         self.log(response.url)
-
-        with open('C:/Users/hrutu/Desktop/GenericScraper/response.html', 'w', encoding='utf-8') as f:
-            f.write(self.driver.page_source)  
-        
-
         self.default_delay()
-
-        self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(5)  # Wait for the page to fully load
-        
-        original_window=self.driver.current_window_handle
-        curr=self.driver.current_url
-        container_link=self.driver.find_elements(By.XPATH,'//ul[@id="searchresults"]//a[1]')
-        links=[]
-        for link in container_link:
-            links.append(link.get_attribute('href'))
-        print(links)
-        for link in links:
-            
-            parsed_url = urlparse(link)
-            par = parse_qs(parsed_url.query)
-            appKey = par['keyVal'][0]
-            self.log(appKey)
-           
-            
-            url=self.summmary_url % (self.start_url, appKey)
-            
-            self.default_delay()
-            if not self.is_selenium_site:
-                yield scrapy.Request(url=url, callback=self.scrapeSummary, dont_filter=True,meta={'appKey':appKey})
-            else:
-                yield SeleniumRequest(url=url, callback=self.scrapeSummary, dont_filter=True, time_sleep_millisec=500,meta={'appKey':appKey})
-            
-            '''
-            doc_url=self.documents_url % (self.start_url, appKey)
-            self.logger.info(f"Yielding document request: {doc_url}")
-            yield SeleniumRequest(url=doc_url, callback=self.scrapeDocuments, dont_filter=True,time_sleep_millisec=500)
-            '''
-            
-
-        #self.driver.get(curr)
-
-        # Handling pagination
-        '''
-        try:
-            next_button = self.driver.find_element(By.XPATH, '//a[@class="next"]')
-            next_url = next_button.get_attribute('href')
-
-            if next_url:
+        container_link=response.xpath('//ul[@id="searchresults"]//a[1]/@href').getall()
+        print('*******************len************', len(container_link))
+        time.sleep(10) 
+        next_url=response.xpath('//a[@class="next"]/@href').get()
+        if next_url:
                 parsed_url = urlparse(next_url)
                 par = parse_qs(parsed_url.query)
                 appKey = par['searchCriteria.page'][0]
                 self.log(f'Next page: {appKey}')
                 next_url = self.next_search_url % (self.start_url, appKey)
 
-                self.default_delay()
-                if not self.is_selenium_site:
-                    yield scrapy.Request(next_url, callback=self.parse, dont_filter=True)
-                else:
-                    yield SeleniumRequest(url=next_url, callback=self.parse, dont_filter=True, time_sleep_millisec=500)
-    
+        for link in container_link:
+            parsed_url = urlparse(link)
+            par = parse_qs(parsed_url.query)
+            appKey = par['keyVal'][0]
+            self.log(appKey)
+            self.requests=[]
+            url=self.summmary_url % (self.start_url, appKey)
+            self.default_delay()
+            yield scrapy.Request(url=url, callback=self.scrapeSummary, dont_filter=True,meta={'appKey':appKey})
+            doc_url=self.documents_url % (self.start_url, appKey)
+            self.logger.info(f"Yielding document request: {doc_url}")
+            yield scrapy.Request(url=doc_url, callback=self.scrapeDocuments, dont_filter=True)
+            
+ 
+        try:
+            self.default_delay()
+            yield scrapy.Request(next_url, callback=self.parse, dont_filter=True)
         except Exception as e:
             self.log(f"Pagination error: {e}")
-        '''
+    
         
                 
     def scrapeSummary(self,response):
@@ -437,12 +478,10 @@ class Genericspider5Spider(scrapy.Spider):
         
         url=self.details_url % (self.start_url, appKey)
         self.default_delay()
-        if not self.is_selenium_site:
-            appItem= scrapy.Request(url=url, callback=self.scrapeDetails, dont_filter=True,meta={'item':appItem})
-        else:
-            appItem = SeleniumRequest(url=url, callback=self.scrapeDetails, dont_filter=True, time_sleep_millisec=500,meta={'item':appItem})
-     
-        yield appItem
+    
+        yield scrapy.Request(url=url, callback=self.scrapeDetails, dont_filter=True,meta={'item':appItem})
+        
+        
     def scrapeDetails(self,response):
         
         appItem = response.meta['item']
@@ -485,13 +524,12 @@ class Genericspider5Spider(scrapy.Spider):
         
         
         url=self.contacts_url % (self.start_url, response.meta['item']['key'])
+        
         self.default_delay()
-        if not self.is_selenium_site:
-            appItem= scrapy.Request(url=url, callback=self.scrapeContacts, dont_filter=True,meta={'item': appItem})
-        else:
-            appItem = SeleniumRequest(url=url, callback=self.scrapeContacts, dont_filter=True, time_sleep_millisec=500,meta={'item': appItem})
-        self.default_delay()
-        return appItem
+       
+        yield scrapy.Request(url=url, callback=self.scrapeContacts, dont_filter=True,meta={'item': appItem})
+
+        
     def scrapeContacts(self,response):
         
         appItem = response.meta['item']
@@ -529,31 +567,22 @@ class Genericspider5Spider(scrapy.Spider):
                 value = self.text_strip(value)
                 appItem['agentMobile'] = value
             
-       
-        
-        
-        doc_url=self.documents_url % (self.start_url, response.meta['item']['key'])
         self.default_delay()
-        if not self.is_selenium_site:
-            appItem =  scrapy.Request(url=doc_url, callback=self.scrapeDocuments, dont_filter=True,meta={'item': appItem})
-        else:
-            appItem = SeleniumRequest(url=doc_url, callback=self.scrapeDocuments, dont_filter=True, time_sleep_millisec=500,meta={'item': appItem})
-        self.default_delay()
-        return appItem
-        
-        
-        #yield appItem
-       
-
-
-        
-
+        yield appItem
 
     def scrapeDocuments(self,response):
-        appItem = response.meta['item']
-        self.logger.info(f"******************documnets getting scraped***************")
-        rows = response.xpath('//table[@id="Documents"]/tbody/tr')[1:] # Skip the first row (header)# Get all rows in the table
+       
         
+        with open('C:/Users/hrutu/Desktop/GenericScraper/doc_response.html','wb') as f:
+            f.write(response.body)
+        self.log("Saved file: doc_response.html")
+
+        self.logger.info(f"******************documnets getting scraped***************")
+        self.log(response.url)
+        rows = response.xpath('//table[@id="Documents"]//tr')[1:] # Skip the first row (header)# Get all rows in the table
+        with open('C:/Users/hrutu/Desktop/GenericScraper/doc_response2.html','wb') as f:
+            f.write(response.body)
+        print('*************************doc rows len***************************',len(rows))
         for row in rows:
             appItem2 = DocumentsItem()
             link = response.request.url
@@ -564,7 +593,7 @@ class Genericspider5Spider(scrapy.Spider):
             appKey = par['keyVal'][0]
             
             cols = row.xpath('./td')  # Get all columns in a single row
-        
+            print('********************doc col len********************',len(cols))
             if len(cols) == 5:  # If the table has 5 columns
                 appItem2['datePub'] = cols[1].xpath('./text()').get()
                 appItem2['doctype'] = cols[2].xpath('./text()').get()
@@ -587,5 +616,5 @@ class Genericspider5Spider(scrapy.Spider):
 
             
             yield appItem2 # Yield each row as a separate item
-        yield appItem
+      
 

@@ -29,13 +29,13 @@ from scraper.items import DocumentsItem
 from scraper.items import GeneralItem
 from scraper.scrapy_selenium2.http import SeleniumRequest, SeleniumRequestUpdatePageSourceAsBody
 from scraper.HtmlRequestByPassMiddleware import RateLimiterHandler
-
+from datetime import datetime, timedelta
 class Genericspider3Spider(scrapy.Spider):
     name = "genericspider3"
     #allowed_domains = ["random.com"]
 
     site=None
-    is_selenium_site=True
+    is_selenium_site=False
     selenium_allow_site=["uk"]
     run_headless="NO"
     driver : uc.Chrome = None
@@ -51,8 +51,19 @@ class Genericspider3Spider(scrapy.Spider):
     domain_url      = '%s%s'
     next_search_url = '%s/online-applications/pagedSearchResults.do?action=page&searchCriteria.page=%s'
     result_url      = '%s/online-applications/advancedSearchResults.do?action=firstPage'
-    start_date      = '01/01/2025'
-    end_date        = '03/01/2025'
+    #start_date      = '01/01/2025'
+    #end_date        = '06/01/2025'
+    # Get today's date
+    today = datetime.today()
+
+    # Get the date 7 days ago
+    seven_days_ago = today - timedelta(days=7)
+
+    # Format it as day/month/year
+    formatted_date = seven_days_ago.strftime("%d/%m/%Y")
+    start_date      = formatted_date 
+    end_date        = datetime.today().strftime("%d/%m/%Y")
+ 
 
     fetch_method    = 'POST'
 
@@ -135,7 +146,7 @@ class Genericspider3Spider(scrapy.Spider):
                     # options.add_argument('--disable-gpu')
                     # options.add_argument("--remote-debugging-port=9222")
                     # options.headless = True
-
+                    #options.add_experimental_option("safebrowsing", {"enabled": False})
                     options.add_argument('--ignore-certificate-errors')
                     options.add_argument('--ignore-ssl-errors')
                     options.add_argument('--start-maximized')
@@ -144,7 +155,7 @@ class Genericspider3Spider(scrapy.Spider):
                     options.add_argument('--disable-popup-blocking')
                     options.add_argument("--user-agent={}".format(user_agent))
                     #options.add_argument('--blink-settings=imagesEnabled=false')
-
+                    options.add_argument("--disable-popup-blocking")  # Disable pop-up blocker
                     options.add_argument('--disable-infobars')
 
                     #load fast
@@ -164,9 +175,9 @@ class Genericspider3Spider(scrapy.Spider):
                     # options.debugger_address = "127.0.0.1:9222"
 
                     options.headless = True
-
+                    #options.add_experimental_option("safebrowsing", {"enabled": False})
                     options.add_argument('--remote-allow-origins=*')  # Allow all remote origins
-
+                    options.add_argument("--disable-popup-blocking")  # Disable pop-up blocker
                     options.add_argument('--ignore-certificate-errors')
                     options.add_argument('--ignore-ssl-errors')
                     options.add_argument('--start-maximized')
@@ -184,9 +195,10 @@ class Genericspider3Spider(scrapy.Spider):
                 #create manually driver
                 chrome_driver_path = "C:/Users/hrutu/Desktop/GenericScraper/scraper/chromedriver.exe"
 
-                options = webdriver.ChromeOptions()
+                #options = webdriver.ChromeOptions()
                 service = Service(chrome_driver_path)  # Manually specify the path
-                driver = webdriver.Chrome(service=service, options=options)
+                #driver = webdriver.Chrome(service=service, options=options)
+                driver = uc.Chrome(options=options,service=service)
 
                 stealth(driver,
                         languages=["en-US", "en"],
@@ -303,7 +315,7 @@ class Genericspider3Spider(scrapy.Spider):
         
         manual_request = False
 
-
+        self.iterations=0
 
         if self.site=="uk" and manual_request==False:
             tabs=self.driver.find_elements(By.XPATH,'//ul[@class="tabs"]/li/a')
@@ -345,19 +357,24 @@ class Genericspider3Spider(scrapy.Spider):
         original_window=self.driver.current_window_handle
         curr=self.driver.current_url
         container_link=self.driver.find_elements(By.XPATH,'//ul[@id="searchresults"]//a[1]')
+        print(len(container_link))
+        time.sleep(10)
         links=[]
         for link in container_link:
             links.append(link.get_attribute('href'))
-        print(links)
-        for link in links:
-            
-            parsed_url = urlparse(link)
+            '''
+            extract_link=link.get_attribute('href')
+            print(extract_link)
+            parsed_url = urlparse(extract_link)
             par = parse_qs(parsed_url.query)
             appKey = par['keyVal'][0]
             self.log(appKey)
-           
-            
+            time.sleep(5)
             url=self.summmary_url % (self.start_url, appKey)
+            link.send_keys(Keys.CONTROL + Keys.RETURN)
+            self.driver.switch_to.window(self.driver.window_handles[1])
+            
+            
             
             self.default_delay()
             if not self.is_selenium_site:
@@ -368,11 +385,61 @@ class Genericspider3Spider(scrapy.Spider):
             doc_url=self.documents_url % (self.start_url, appKey)
             self.logger.info(f"Yielding document request: {doc_url}")
             yield SeleniumRequest(url=doc_url, callback=self.scrapeDocuments, dont_filter=True,time_sleep_millisec=500)
+        #self.driver.execute_script("window.open('');")
+            self.driver.close()
+            self.driver.switch_to.window(original_window)
+            '''
+            
+        
+        print(links)
+        self.driver.execute_script("window.open('');")
+        for link in links:
+            
+            parsed_url = urlparse(link)
+            par = parse_qs(parsed_url.query)
+            appKey = par['keyVal'][0]
+            self.log(appKey)
+           
+            
+            #self.driver.switch_to.window(self.driver.window_handles[1])
+            '''
+             if len(self.driver.window_handles) > 1:
+                self.driver.switch_to.window(self.driver.window_handles[1])
+            else:
+                self.logger.error("No new window/tab opened.")
+            '''
+            url=self.summmary_url % (self.start_url, appKey)
+            self.driver.switch_to.window(self.driver.window_handles[1])
+           
+            self.iterations=self.iterations+1
 
+           
+
+            
+            self.default_delay()
+            self.is_selenium_site=False
+            if self.is_selenium_site==False:
+                yield scrapy.Request(url=url, callback=self.scrapeSummary, dont_filter=True,meta={'appKey':appKey})
+            else:
+                yield SeleniumRequest(url=url, callback=self.scrapeSummary, dont_filter=True, time_sleep_millisec=500,meta={'appKey':appKey})
+            
+            doc_url=self.documents_url % (self.start_url, appKey)
+            self.logger.info(f"Yielding document request: {doc_url}")
+            yield scrapy.Request(url=doc_url, callback=self.scrapeDocuments, dont_filter=True,time_sleep_millisec=500)
+
+
+        self.driver.close()
+        self.driver.switch_to.window(original_window)
+
+        
+        
         #self.driver.get(curr)
 
         # Handling pagination
-        '''
+        #time.sleep(40)
+        #self.driver.close()
+        #self.driver.switch_to.window(original_window)
+        
         try:
             next_button = self.driver.find_element(By.XPATH, '//a[@class="next"]')
             next_url = next_button.get_attribute('href')
@@ -385,14 +452,15 @@ class Genericspider3Spider(scrapy.Spider):
                 next_url = self.next_search_url % (self.start_url, appKey)
 
                 self.default_delay()
-                if not self.is_selenium_site:
+                self.is_selenium_site=True
+                if self.is_selenium_site==False:
                     yield scrapy.Request(next_url, callback=self.parse, dont_filter=True)
                 else:
                     yield SeleniumRequest(url=next_url, callback=self.parse, dont_filter=True, time_sleep_millisec=500)
-    
+                print('*************************************next page clicked*******************************')
         except Exception as e:
             self.log(f"Pagination error: {e}")
-        '''
+        
         
                 
     def scrapeSummary(self,response):
@@ -434,12 +502,17 @@ class Genericspider3Spider(scrapy.Spider):
         
         url=self.details_url % (self.start_url, appKey)
         self.default_delay()
-        if not self.is_selenium_site:
-            appItem= scrapy.Request(url=url, callback=self.scrapeDetails, dont_filter=True,meta={'item':appItem})
+        self.is_selenium_site=False
+        if self.is_selenium_site==False:
+            yield scrapy.Request(url=url, callback=self.scrapeDetails, dont_filter=True,meta={'item':appItem})
         else:
-            appItem = SeleniumRequest(url=url, callback=self.scrapeDetails, dont_filter=True, time_sleep_millisec=500,meta={'item':appItem})
+            yield SeleniumRequest(url=url, callback=self.scrapeDetails, dont_filter=True, time_sleep_millisec=500,meta={'item':appItem})
+        
+        
+        #appItem= scrapy.Request(url=url, callback=self.scrapeDetails, dont_filter=True,meta={'item':appItem})
+        
      
-        yield appItem
+       
     def scrapeDetails(self,response):
         
         appItem = response.meta['item']
@@ -483,12 +556,15 @@ class Genericspider3Spider(scrapy.Spider):
         
         url=self.contacts_url % (self.start_url, response.meta['item']['key'])
         self.default_delay()
-        if not self.is_selenium_site:
-            appItem= scrapy.Request(url=url, callback=self.scrapeContacts, dont_filter=True,meta={'item': appItem})
+        self.is_selenium_site=False
+        if self.is_selenium_site==False:
+            yield scrapy.Request(url=url, callback=self.scrapeContacts, dont_filter=True,meta={'item': appItem})
         else:
-            appItem = SeleniumRequest(url=url, callback=self.scrapeContacts, dont_filter=True, time_sleep_millisec=500,meta={'item': appItem})
+            yield SeleniumRequest(url=url, callback=self.scrapeContacts, dont_filter=True, time_sleep_millisec=500,meta={'item': appItem})
+        
+        #appItem= scrapy.Request(url=url, callback=self.scrapeContacts, dont_filter=True,meta={'item': appItem})
         self.default_delay()
-        return appItem
+        
     def scrapeContacts(self,response):
         
         appItem = response.meta['item']

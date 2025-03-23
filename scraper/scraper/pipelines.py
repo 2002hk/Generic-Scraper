@@ -20,7 +20,7 @@ class ScraperPipeline:
 class GenericcouncilPipeline:
     def open_spider(self, spider):
         # Open CSV file for writing
-        self.file = open('mainpageitems_scrapy_barnet.csv', 'w', newline='', encoding='utf-8')
+        self.file = open('mainpageitems_scrapy_new2.csv', 'w', newline='', encoding='utf-8')
         self.writer = csv.writer(self.file)
         
         # Writing the header row with all field names
@@ -54,7 +54,7 @@ class GenericcouncilPipeline:
 class DocumentsPipeline:
     def open_spider(self, spider):
         # Open CSV file for writing
-        self.file2 = open('documents_scrapy_barnet.csv', 'w', newline='', encoding='utf-8')
+        self.file2 = open('documents_scrapy_new2.csv', 'w', newline='', encoding='utf-8')
         self.writer2 = csv.writer(self.file2)
         
         # Writing the header row with all field names

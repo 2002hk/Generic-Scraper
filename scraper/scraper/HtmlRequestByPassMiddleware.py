@@ -111,7 +111,9 @@ class RateLimiterHandler:
     def __init__(self, enable=False ,max_calls=2, period=5, spider=None):
         self.max_calls = max_calls
         self.period = period
-        self.rate_limiter = RateLimiter(max_calls=self.max_calls, period=self.period, callback=self.limited)
+        self.rate_limiter = RateLimiter(max_calls=int(self.max_calls),  # Ensure integer
+            period=int(self.period),        # Ensure integer
+            callback=self.limited)
         self.enable = enable
         self.spider = spider
 

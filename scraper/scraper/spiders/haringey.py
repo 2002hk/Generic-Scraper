@@ -189,7 +189,8 @@ class HaringeySpider(scrapy.Spider):
 
                 options = webdriver.ChromeOptions()
                 service = Service(chrome_driver_path)  # Manually specify the path
-                driver = webdriver.Chrome(service=service, options=options)
+                #driver = webdriver.Chrome(service=service, options=options)
+                driver = uc.Chrome(options=options,service=service)
 
                 stealth(driver,
                         languages=["en-US", "en"],
