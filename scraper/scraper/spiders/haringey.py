@@ -20,7 +20,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.action_chains import ActionChains
-
+from datetime import datetime, timedelta
 import undetected_chromedriver as uc
 from selenium_stealth import stealth
 #from inline_requests import inline_requests
@@ -54,8 +54,8 @@ class HaringeySpider(scrapy.Spider):
     next_search_url = '%s/online-applications/pagedSearchResults.do?action=page&searchCriteria.page=%s'
     result_url      = '%s/online-applications/advancedSearchResults.do?action=firstPage'
 
-    start_date      = '01/01/2025' ## month/date/year
-    end_date        = '01/20/2025'
+    #start_date      = '01/01/2025' ## month/date/year
+    #end_date        = '01/20/2025'
 
     fetch_method    = 'POST'
 
@@ -252,10 +252,13 @@ class HaringeySpider(scrapy.Spider):
 
 
     def __init__(self,start_date=None,end_date=None,start_url=None,custom_set=None,fetch_method=None,fetch_decisions=None,delay_sec=None,
-                 rate_limit=None,*args,**kwargs):
+                 rate_limit=None,range=None,*args,**kwargs):
         super(HaringeySpider,self).__init__(*args,**kwargs)
         self.rate_period=delay_sec
         self.rate_limit=rate_limit
+
+        if range!=None:
+            self.range=range
 
         if delay_sec!=None:
             self.rate_period=delay_sec
@@ -280,6 +283,7 @@ class HaringeySpider(scrapy.Spider):
             self.log('### Fetch decisions changed to: %s ###' % self.fetch_decisions)
         else:
             self.fetch_decisions=None
+        '''
         if start_date:
             self.log('### Command start date: %s ###' % start_date)
             self.start_date = start_date
@@ -290,7 +294,9 @@ class HaringeySpider(scrapy.Spider):
             self.log('### Command end date: %s ###' % end_date)
             self.end_date = end_date
         else:
-            self.log('### Command end date: %s ###' % self.end_date)   
+            self.log('### Command end date: %s ###' % self.end_date) 
+        '''
+          
     
     def start_requests(self):
       
@@ -313,6 +319,28 @@ class HaringeySpider(scrapy.Spider):
         action.move_to_element(options_list[0]).click().perform()
         
         '''
+        if self.range=='7':
+            # Get today's date
+            today = datetime.today()
+            # Get the date 7 days ago
+            seven_days_ago = today - timedelta(days=7)
+            # Format it as day/month/year
+            formatted_date = seven_days_ago.strftime("%m/%d/%Y")
+            self.start_date      = formatted_date 
+            self.end_date        = datetime.today().strftime("%m/%d/%Y")
+            print(self.start_date)
+            print(self.end_date)
+        elif self.range=='14':
+            # Get today's date
+            today = datetime.today()
+            # Get the date 14 days ago
+            seven_days_ago = today - timedelta(days=14)
+            # Format it as day/month/year
+            formatted_date = seven_days_ago.strftime("%m/%d/%Y")
+            self.start_date      = formatted_date 
+            self.end_date        = datetime.today().strftime("%m/%d/%Y")
+            print(self.start_date)
+            print(self.end_date)
         
         search_buttons=self.driver.find_elements(By.XPATH,'//button[@class="pr-buttonLink slds-button"]')
         search_buttons[1].click()

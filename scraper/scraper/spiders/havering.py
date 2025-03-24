@@ -20,7 +20,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.action_chains import ActionChains
-
+from datetime import datetime,timedelta
 import undetected_chromedriver as uc
 from selenium_stealth import stealth
 #from inline_requests import inline_requests
@@ -50,8 +50,8 @@ class HaveringSpider(scrapy.Spider):
     start_urls=['%s/OcellaWeb/planningSearch']
 
     result_page_url = '%s/OcellaWeb/planningDetails?reference=%s&from=planningSearch'
-    start_date      = '01-01-2025' 
-    end_date        = '15-01-2025'
+    #start_date      = '01-01-2025' 
+    #end_date        = '15-01-2025'
 
     fetch_method    = 'POST'
 
@@ -248,11 +248,13 @@ class HaveringSpider(scrapy.Spider):
 
 
     def __init__(self,start_date=None,end_date=None,start_url=None,custom_set=None,fetch_method=None,fetch_decisions=None,delay_sec=None,
-                 rate_limit=None,*args,**kwargs):
+                 rate_limit=None,range=None,*args,**kwargs):
         super(HaveringSpider,self).__init__(*args,**kwargs)
         self.rate_period=delay_sec
         self.rate_limit=rate_limit
 
+        if range!= None:
+            self.range=range
         if delay_sec!=None:
             self.rate_period=delay_sec
             self.rate_limit=1
@@ -276,7 +278,9 @@ class HaveringSpider(scrapy.Spider):
             self.log('### Fetch decisions changed to: %s ###' % self.fetch_decisions)
         else:
             self.fetch_decisions=None
-        if start_date:
+        
+        '''
+         if start_date:
             self.log('### Command start date: %s ###' % start_date)
             self.start_date = start_date
         else:
@@ -286,7 +290,9 @@ class HaveringSpider(scrapy.Spider):
             self.log('### Command end date: %s ###' % end_date)
             self.end_date = end_date
         else:
-            self.log('### Command end date: %s ###' % self.end_date)   
+            self.log('### Command end date: %s ###' % self.end_date)
+        '''
+          
     
     def start_requests(self):
         scrape_url=self.start_urls[0] % (self.start_url)
@@ -294,6 +300,31 @@ class HaveringSpider(scrapy.Spider):
             #url=https://publicaccess.newark-sherwooddc.gov.uk/online-applications/search.do?action=advanced
     def doSearch(self,response):
         
+        if self.range=='7':
+            # Get today's date
+            today = datetime.today()
+            # Get the date 7 days ago
+            seven_days_ago = today - timedelta(days=7)
+            # Format it as day/month/year
+            formatted_date = seven_days_ago.strftime("%d-%m-%Y")
+            self.start_date      = formatted_date 
+            self.end_date        = datetime.today().strftime("%d-%m-%Y")
+            print(self.start_date)
+            print(self.end_date)
+        elif self.range=='14':
+            # Get today's date
+            today = datetime.today()
+            # Get the date 14 days ago
+            seven_days_ago = today - timedelta(days=14)
+            # Format it as day/month/year
+            formatted_date = seven_days_ago.strftime("%d-%m-%Y")
+            self.start_date      = formatted_date 
+            self.end_date        = datetime.today().strftime("%d-%m-%Y")
+            print(self.start_date)
+            print(self.end_date)
+
+
+
         start_date_field=self.driver.find_element(By.XPATH,'//input[@id="decidedFrom"]')
         start_date_field.send_keys(self.start_date)
         end_date_field=self.driver.find_element(By.XPATH,'//input[@id="decidedTo"]')
